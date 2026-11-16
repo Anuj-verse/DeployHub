@@ -31,6 +31,8 @@ app.get('/', (req, res) => {
   res.render('login', { title: 'Sign in', error: req.query.error || null });
 });
 
+app.use(require('./routes/auth'));
+app.use(require('./routes/repos'));
 // @@ROUTES@@
 
 app.use((req, res) => {
