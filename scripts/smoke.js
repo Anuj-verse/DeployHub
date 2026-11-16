@@ -24,4 +24,13 @@ assert.ok(y.includes('type: LoadBalancer') && y.includes('replicas: 2'));
 assert.ok(render({ name: 'x', namespace: 'n', image: 'i', port: 1, replicas: 1, mode: 'local' }).includes('type: NodePort'));
 
 assert.strictEqual(redactText('clone https://x-access-token:SECRET@github.com', ['SECRET']), 'clone https://x-access-token:***@github.com');
+const crypto = require('crypto');
+const { verifySignature } = require('../services/github');
+const body = Buffer.from('{"a":1}');
+const sig = 'sha256=' + crypto.createHmac('sha256', 'k').update(body).digest('hex');
+assert.ok(verifySignature(body, sig, 'k'));
+assert.ok(!verifySignature(body, sig, 'other'));
+assert.ok(!verifySignature(body, 'sha256=00', 'k'));
+assert.ok(!verifySignature(body, undefined, 'k'));
+
 console.log('smoke: all checks passed');
