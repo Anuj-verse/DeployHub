@@ -12,6 +12,7 @@ app.set('trust proxy', 1); // correct protocol/cookies behind ngrok or a load ba
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
+app.use('/webhook', require('./routes/webhook'));
 // @@RAW_ROUTES@@  (routes that need the raw request body: mounted before the JSON parser)
 
 app.use(express.json({ limit: '100kb' }));

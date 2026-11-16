@@ -95,7 +95,20 @@ async function runPipeline(dep, token) {
     dep.status = 'live';
     L(`✔ Live at ${dep.url}`);
 
-    // @@POST_LIVE@@
+    // Register the push webhook once (skipped on localhost); failure here never fails the deployment.
+    try {
+      const link = store.getLink(dep.fullName);
+      if (link && !link.webhookId) {
+        const r = await gh.ensureWebhook(token, dep.fullName);
+        if (r.skipped) L('Warning: webhook not created. ' + r.reason);
+        else {
+          store.setLink(dep.fullName, { webhookId: r.id || true });
+          L(r.created ? '✔ Webhook created: pushes to this branch will redeploy automatically.' : '✔ Webhook already registered.');
+        }
+      }
+    } catch (e) {
+      L('Warning: could not create webhook: ' + redactText(e.message, secrets));
+    }
   } catch (err) {
     dep.status = 'failed';
     dep.failedIndex = Math.max(0, dep.stageIndex);
