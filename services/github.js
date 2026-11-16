@@ -21,3 +21,27 @@ async function getRepo(token, owner, repo) {
 }
 
 module.exports = { client, listRepos, getRepo };
+
+// ---- Phase 4: helpers for the deploy dialog ----
+const { guess } = require('./detector');
+
+async function listBranches(token, owner, repo) {
+  const o = client(token);
+  return o.paginate(o.rest.repos.listBranches, { owner, repo, per_page: 100 }, (r) => r.data.map((b) => b.name));
+}
+
+// Looks at the repo root through the API (no clone) to prefill stack + port in the dialog.
+async function quickDetect(token, owner, repo, ref) {
+  const o = client(token);
+  const { data } = await o.rest.repos.getContent({ owner, repo, path: '', ref });
+  const names = Array.isArray(data) ? data.map((f) => f.name) : [];
+  let text = '';
+  if (names.includes('Dockerfile')) {
+    try {
+      const f = await o.rest.repos.getContent({ owner, repo, path: 'Dockerfile', ref });
+      text = Buffer.from(f.data.content, 'base64').toString('utf8');
+    } catch (e) { /* ignore: port just stays unknown */ }
+  }
+  return guess(names, text);
+}
+Object.assign(module.exports, { listBranches, quickDetect });

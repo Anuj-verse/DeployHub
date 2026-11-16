@@ -7,7 +7,7 @@ const router = express.Router();
 const NAME_RE = /^[\w.-]+$/;
 
 router.get('/repos', requireAuth, (req, res) => {
-  res.render('repos', { title: 'Repositories', active: 'repos', scripts: ['/js/repos.js'] });
+  res.render('repos', { title: 'Repositories', active: 'repos', scripts: ['/js/repos.js', '/js/deploy-modal.js'] });
 });
 
 function ghError(res, e) {
@@ -28,6 +28,24 @@ router.get('/api/repos', requireAuth, async (req, res) => {
       }),
     });
   } catch (e) { ghError(res, e); }
+});
+
+function params(req, res) {
+  const { owner, repo } = req.params;
+  if (!NAME_RE.test(owner) || !NAME_RE.test(repo)) { res.status(400).json({ error: 'Invalid repository name' }); return null; }
+  return { owner, repo };
+}
+
+router.get('/api/repos/:owner/:repo/branches', requireAuth, async (req, res) => {
+  const p = params(req, res); if (!p) return;
+  try { res.json({ branches: await gh.listBranches(req.session.token, p.owner, p.repo) }); } catch (e) { ghError(res, e); }
+});
+
+router.get('/api/repos/:owner/:repo/detect', requireAuth, async (req, res) => {
+  const p = params(req, res); if (!p) return;
+  const ref = String(req.query.branch || '');
+  if (!/^[\w./-]+$/.test(ref) || ref.startsWith('-')) return res.status(400).json({ error: 'Invalid branch' });
+  try { res.json(await gh.quickDetect(req.session.token, p.owner, p.repo, ref)); } catch (e) { ghError(res, e); }
 });
 
 // @@REPO_API@@

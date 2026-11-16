@@ -33,6 +33,7 @@ app.get('/', (req, res) => {
 
 app.use(require('./routes/auth'));
 app.use(require('./routes/repos'));
+app.use(require('./routes/deploy'));
 // @@ROUTES@@
 
 app.use((req, res) => {
