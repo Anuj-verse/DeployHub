@@ -118,6 +118,7 @@ async function runPipeline(dep, token) {
     L(`ERROR: ${dep.error}`);
   } finally {
     dep.finishedAt = Date.now();
+    store.touch();
     fs.rmSync(dir, { recursive: true, force: true });
   }
 }

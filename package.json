@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "smoke": "node scripts/smoke.js"
+    "smoke": "node scripts/smoke.js",
+    "preflight": "node scripts/preflight.js"
   },
   "engines": { "node": ">=20" },
   "dependencies": {

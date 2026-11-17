@@ -35,6 +35,7 @@ app.get('/', (req, res) => {
 app.use(require('./routes/auth'));
 app.use(require('./routes/repos'));
 app.use(require('./routes/deploy'));
+app.get('/healthz', (req, res) => res.json({ ok: true }));
 // @@ROUTES@@
 
 app.use((req, res) => {
@@ -48,6 +49,10 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
 });
 
 if (require.main === module) {
+  const store = require('./services/store');
+  const bye = () => { store.flush(); process.exit(0); };
+  process.on('SIGTERM', bye);
+  process.on('SIGINT', bye);
   app.listen(PORT, () => {
     console.log(`DeployHub running at ${BASE_URL}`);
     ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'DOCKER_USER'].forEach((k) => {

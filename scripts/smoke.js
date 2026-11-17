@@ -33,4 +33,10 @@ assert.ok(!verifySignature(body, sig, 'other'));
 assert.ok(!verifySignature(body, 'sha256=00', 'k'));
 assert.ok(!verifySignature(body, undefined, 'k'));
 
+const { isAllowed } = require('../services/access');
+delete process.env.ALLOWED_GITHUB_USERS;
+assert.ok(isAllowed('anyone'));
+process.env.ALLOWED_GITHUB_USERS = ' Alice, bob ';
+assert.ok(isAllowed('alice') && isAllowed('BOB') && !isAllowed('mallory'));
+
 console.log('smoke: all checks passed');

@@ -1,6 +1,7 @@
 // GitHub OAuth 2.0 web flow with a random `state` value (CSRF protection).
 const crypto = require('crypto');
 const express = require('express');
+const { isAllowed } = require('../services/access');
 const router = express.Router();
 
 router.get('/auth/github', (req, res) => {
@@ -45,6 +46,7 @@ router.get('/auth/callback', async (req, res) => {
     });
     if (!userRes.ok) return fail('Login failed: could not read your GitHub profile.');
     const u = await userRes.json();
+    if (!isAllowed(u.login)) return fail('This DeployHub server only allows specific GitHub accounts. Ask the owner to add yours.');
 
     // New session id after login prevents session fixation.
     req.session.regenerate((err) => {

@@ -23,6 +23,8 @@ GitHub push ──> POST /webhook/github (HMAC verified) ──> steps 2-6 again
 | 4 | Deploy API, deploy dialog, deployments table, live detail page (stepper + logs) | `routes/deploy.js`, `public/js/*.js`, `views/*.ejs` |
 | 5 | Signed push webhook, auto-registration, auto-redeploy | `routes/webhook.js`, `services/github.js` |
 | 6 | Samples, smoke test, this README | `sample-repos/`, `scripts/smoke.js` |
+| 7 | Per-user namespaces and image names (multi-user isolation) | `services/pipeline.js` |
+| 8 | Restart-safe state (tokens encrypted), optional sign-in allow-list, preflight checker, VM setup scripts | `services/store.js`, `services/access.js`, `scripts/preflight.js`, `scripts/setup-ec2.sh`, `scripts/start.sh` |
 
 ## Prerequisites
 Node 20+, `git`, `docker` (running), `kubectl` with a working kubeconfig, a Docker Hub account (+ access token), a Kubernetes cluster, and a GitHub OAuth App.
@@ -42,6 +44,17 @@ Use **minikube** (recommended): `minikube start`, then in `.env` set `CLUSTER_MO
 
 ### Webhook (auto-redeploy)
 GitHub cannot reach localhost. Run `ngrok http 3000`, set `BASE_URL` to the https URL (also update the OAuth App callback URL), restart, and deploy once. DeployHub registers the webhook on the first successful deploy. Pushing to the deployed branch then redeploys (Trigger = `webhook`).
+
+## Run on a VM (no laptop needed at the exam)
+Ubuntu 22.04 VM (EC2 t3.medium, Elastic IP). Security group: 22 (your IP only), 3000, 30000-32767.
+```
+git clone <your-repo-url> deployhub && cd deployhub
+bash scripts/setup-ec2.sh     # Docker, Node 20, k3s, pm2, deps, .env with generated secrets + detected public IP
+nano .env                     # fill GITHUB_CLIENT_ID/SECRET, DOCKER_USER, DOCKER_PASS
+# set the GitHub OAuth App callback to http://<public-ip>:3000/auth/callback, log out/in once, then:
+bash scripts/start.sh         # runs `npm run preflight`, starts under pm2, enables start-on-boot
+```
+`npm run preflight` any time to see what is still missing. `ALLOWED_GITHUB_USERS=alice,bob` restricts sign-in (empty = any GitHub user).
 
 ## Demo script (5 minutes)
 1. Log in with GitHub, show the repo list (search, language filter).
@@ -71,7 +84,7 @@ The app must listen on `0.0.0.0` and honor the `PORT` env var (set to the contai
 - Webhook payloads are verified with HMAC-SHA256 (`timingSafeEqual`) over the raw body. `/api/deploy` is rate-limited (10/min per session).
 
 ## Known limitations
-- State is in memory: restarting the server clears history and webhook links (the cluster keeps running).
+- State is a JSON file (`data/state.json`), not a database. GitHub tokens in it are AES-256-GCM encrypted with a key derived from `SESSION_SECRET`; changing that secret drops webhook links. Logins (sessions) are in memory, so users sign in again after a restart. A deployment running during a restart is marked failed.
 - The clone URL carries the token, so a local `ps` could expose it for the clone's duration. Production fix: Git credential helper or GitHub App installation tokens.
 - The server needs Docker socket access, which is effectively root on the host. Production fix: build in-cluster with Kaniko/BuildKit jobs.
 - Multi-user: apps are isolated per GitHub user (own namespace, user-prefixed image names), but all users share one cluster and one Docker Hub account. Anyone with a GitHub account can sign in, so restrict access (firewall or an allow-list) on a public server.
