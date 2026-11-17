@@ -31,7 +31,7 @@ Node 20+, `git`, `docker` (running), `kubectl` with a working kubeconfig, a Dock
 1. `npm install`
 2. Create a GitHub OAuth App: Settings > Developer settings > OAuth Apps. Callback URL: `<BASE_URL>/auth/callback` (default `http://localhost:3000/auth/callback`).
 3. `cp .env.example .env` and fill in `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `DOCKER_USER`, `DOCKER_PASS` (or run `docker login` once), `SESSION_SECRET`, `WEBHOOK_SECRET`.
-4. Check the cluster: `kubectl get nodes`. The `deployhub` namespace is created automatically.
+4. Check the cluster: `kubectl get nodes`. Each GitHub user's apps go into their own namespace (`deployhub-<github-login>`), created automatically.
 5. `npm start`, then open http://localhost:3000.
 
 ### Cloud cluster (EKS/GKE/AKS)
@@ -48,7 +48,7 @@ GitHub cannot reach localhost. Run `ngrok http 3000`, set `BASE_URL` to the http
 2. Deploy `sample-repos/node-sample` (push it to your GitHub first). Watch the stepper and logs, then open the live URL.
 3. Show the generated Dockerfile in the Generating step logs.
 4. Deploy `sample-repos/python-sample` the same way (Flask on 8000).
-5. Edit the Node app, `git push`, and show the automatic webhook redeploy and rolling update (`kubectl get pods -n deployhub -w`).
+5. Edit the Node app, `git push`, and show the automatic webhook redeploy and rolling update (`kubectl get pods -A -l managed-by=deployhub -w`).
 
 ## Pipeline stages
 Clone > Detect > Generate > Build > Push > Deploy > Live. Per-stage timeouts: clone 60s, build 600s, push 300s, rollout 150s, load balancer 120s. One running deployment per repo (409 otherwise). Failures stop the run, mark the failing step, and show the error banner.
@@ -74,7 +74,7 @@ The app must listen on `0.0.0.0` and honor the `PORT` env var (set to the contai
 - State is in memory: restarting the server clears history and webhook links (the cluster keeps running).
 - The clone URL carries the token, so a local `ps` could expose it for the clone's duration. Production fix: Git credential helper or GitHub App installation tokens.
 - The server needs Docker socket access, which is effectively root on the host. Production fix: build in-cluster with Kaniko/BuildKit jobs.
-- Kubernetes resource names derive from the repo name, so two users deploying same-named repos to one namespace would collide.
+- Multi-user: apps are isolated per GitHub user (own namespace, user-prefixed image names), but all users share one cluster and one Docker Hub account. Anyone with a GitHub account can sign in, so restrict access (firewall or an allow-list) on a public server.
 - Node apps needing a build step (React, TypeScript) are not supported; Dockerfile repos are.
 
 ## Future scope

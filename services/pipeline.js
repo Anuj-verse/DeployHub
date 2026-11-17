@@ -14,7 +14,9 @@ const T = { clone: 60e3, build: 600e3, push: 300e3, kubectl: 60e3, rollout: 150e
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function runPipeline(dep, token) {
-  const ns = process.env.K8S_NAMESPACE || 'deployhub';
+  // Per-user isolation: each GitHub user gets their own namespace (e.g. deployhub-octocat).
+  const userSlug = sanitizeName(dep.ownerLogin);
+  const ns = `${process.env.K8S_NAMESPACE || 'deployhub'}-${userSlug}`;
   const mode = process.env.CLUSTER_MODE === 'local' ? 'local' : 'cloud';
   const dir = path.join(os.tmpdir(), 'deployhub', dep.id);
   const secrets = [token, process.env.DOCKER_PASS];
@@ -62,7 +64,7 @@ async function runPipeline(dep, token) {
     dep.appName = name;
     dep.namespace = ns;
     const tag = (dep.commit || String(Date.now())).slice(0, 7);
-    dep.image = `${process.env.DOCKER_USER}/${name}:${tag}`;
+    dep.image = `${process.env.DOCKER_USER}/${userSlug}-${name}:${tag}`; // user prefix avoids image-name clashes
     const buildArgs = ['build', '-t', dep.image];
     if (process.env.DOCKER_PLATFORM) buildArgs.push('--platform', process.env.DOCKER_PLATFORM);
     buildArgs.push('.');
