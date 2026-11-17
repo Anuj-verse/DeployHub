@@ -77,7 +77,7 @@ router.delete('/api/deployments/:id', requireAuth, async (req, res) => {
   if (store.isRunning(dep.fullName)) return res.status(409).json({ error: 'Wait for the running deployment to finish first.' });
   if (dep.appName) {
     try {
-      await run('kubectl', ['delete', 'deployment,service', dep.appName, '-n', dep.namespace, '--ignore-not-found'], { timeoutMs: 60000 });
+      await run('kubectl', ['delete', 'deployment,service,ingress', dep.appName, '-n', dep.namespace, '--ignore-not-found'], { timeoutMs: 60000 });
     } catch (e) { return res.status(500).json({ error: 'kubectl delete failed: ' + e.message }); }
   }
   store.removeApp(dep.ownerLogin, dep.fullName);

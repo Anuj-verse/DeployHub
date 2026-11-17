@@ -39,4 +39,16 @@ assert.ok(isAllowed('anyone'));
 process.env.ALLOWED_GITHUB_USERS = ' Alice, bob ';
 assert.ok(isAllowed('alice') && isAllowed('BOB') && !isAllowed('mallory'));
 
+const { pickHost } = require('../services/hosts');
+const owners = { 'app.example.in': 'alice' };
+const pick = (o) => pickHost({ domain: 'example.in', ownerOf: (h) => owners[h] || null, previous: null, ...o });
+assert.strictEqual(pick({ appName: 'app', userSlug: 'alice', login: 'alice' }), 'app.example.in');
+assert.strictEqual(pick({ appName: 'app', userSlug: 'bob', login: 'bob' }), 'app-bob.example.in');
+assert.strictEqual(pick({ appName: 'deploy', userSlug: 'bob', login: 'bob' }), 'deploy-app.example.in');
+assert.strictEqual(pick({ appName: 'app', userSlug: 'bob', login: 'bob', previous: 'app-bob.example.in' }), 'app-bob.example.in');
+assert.strictEqual(pickHost({ appName: 'a', userSlug: 'b', login: 'b', domain: '', ownerOf: () => null }), null);
+const withHost = render({ name: 'x', namespace: 'n', image: 'i', port: 3000, replicas: 1, mode: 'local', host: 'x.example.in' });
+assert.ok(withHost.includes('kind: Ingress') && withHost.includes('host: "x.example.in"') && withHost.includes('type: ClusterIP'));
+assert.ok(!render({ name: 'x', namespace: 'n', image: 'i', port: 1, replicas: 1, mode: 'cloud' }).includes('kind: Ingress'));
+
 console.log('smoke: all checks passed');

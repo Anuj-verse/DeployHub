@@ -56,6 +56,14 @@ bash scripts/start.sh         # runs `npm run preflight`, starts under pm2, enab
 ```
 `npm run preflight` any time to see what is still missing. `ALLOWED_GITHUB_USERS=alice,bob` restricts sign-in (empty = any GitHub user).
 
+## Custom domain and per-app subdomains
+Set `APP_DOMAIN=yourdomain.in`. Every deployed repo is served at `http://<repo>.yourdomain.in` through the Ingress (k3s ships Traefik on ports 80/443); the Service stays internal.
+1. In your DNS provider add two **A records** pointing to the server's Elastic IP: `deploy` and `*` (wildcard), TTL 300.
+2. Security group: allow inbound **80** (and 443 if you add TLS later).
+3. `.env`: `APP_DOMAIN=yourdomain.in`, `BASE_URL=http://deploy.yourdomain.in:3000`, then `pm2 restart deployhub --update-env`. Update the GitHub OAuth App callback to `http://deploy.yourdomain.in:3000/auth/callback`.
+4. `npm run preflight` verifies Traefik and the wildcard DNS.
+Naming: `<repo>.domain`; if another user already owns that name it becomes `<repo>-<user>.domain`; reserved names (`www`, `deploy`, `mail`, ...) get `-app`. A user's app keeps its hostname across redeploys. Without `APP_DOMAIN` the old IP:port URLs are used.
+
 ## Demo script (5 minutes)
 1. Log in with GitHub, show the repo list (search, language filter).
 2. Deploy `sample-repos/node-sample` (push it to your GitHub first). Watch the stepper and logs, then open the live URL.
