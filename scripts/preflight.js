@@ -49,5 +49,22 @@ pass('CLUSTER_MODE = ' + mode);
 if (mode === 'local' && !env('LOCAL_HOST')) warn('CLUSTER_MODE=local without LOCAL_HOST: the node InternalIP will be used in app URLs (set it to the VM public IP)');
 env('ALLOWED_GITHUB_USERS') ? pass('Sign-in restricted to: ' + env('ALLOWED_GITHUB_USERS')) : warn('ALLOWED_GITHUB_USERS empty: any GitHub user can sign in and deploy to your cluster');
 
-console.log(fails ? `\n${fails} problem(s) to fix.\n` : '\nAll required checks passed.\n');
-process.exit(fails ? 1 : 0);
+(async () => {
+  const domain = env('APP_DOMAIN');
+  console.log('\nCustom domain');
+  if (!domain) warn('APP_DOMAIN empty: apps will use IP:NodePort URLs instead of subdomains');
+  else {
+    pass('APP_DOMAIN = ' + domain);
+    const t = sh('kubectl', ['get', 'pods', '-n', 'kube-system', '-l', 'app.kubernetes.io/name=traefik', '--no-headers']);
+    /Running/.test(t.stdout || '') ? pass('Traefik ingress controller is running') : fail('Traefik not running in kube-system', 'k3s installs it by default; check: kubectl get pods -n kube-system');
+    try {
+      const ips = await require('dns').promises.resolve4('preflight-check.' + domain);
+      pass(`Wildcard DNS works: *.${domain} -> ${ips.join(', ')}`);
+    } catch (e) {
+      fail(`*.${domain} does not resolve`, `add an A record named * pointing to this server's public IP (propagation can take a few minutes)`);
+    }
+    console.log('        Security group must allow inbound port 80 for the subdomains.');
+  }
+  console.log(fails ? `\n${fails} problem(s) to fix.\n` : '\nAll required checks passed.\n');
+  process.exit(fails ? 1 : 0);
+})();

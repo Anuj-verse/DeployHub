@@ -9,6 +9,8 @@ const { detect } = require('./detector');
 const { dockerfileFor, DOCKERIGNORE } = require('./dockerfiles');
 const { render, sanitizeName } = require('./manifest');
 const gh = require('./github');
+const dns = require('dns').promises;
+const { pickHost } = require('./hosts');
 
 const T = { clone: 60e3, build: 600e3, push: 300e3, kubectl: 60e3, rollout: 150e3, lb: 120e3 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -83,15 +85,29 @@ async function runPipeline(dep, token) {
     } catch (e) {
       await sh('kubectl', ['create', 'namespace', ns], { timeoutMs: T.kubectl });
     }
+    const host = pickHost({
+      appName: name, userSlug, domain: process.env.APP_DOMAIN, login: dep.ownerLogin,
+      previous: store.previousHost(dep.ownerLogin, dep.fullName, dep.id), ownerOf: store.hostOwner,
+    });
+    dep.host = host;
+    if (host) L(`Public hostname: ${host}`);
     const manifestPath = path.join(dir, 'k8s.yaml');
     fs.writeFileSync(manifestPath, render({
       name, namespace: ns, image: dep.image, port, replicas: dep.replicas, mode, repo: dep.fullName, commit: dep.commit,
+      host, ingressClass: process.env.INGRESS_CLASS || 'traefik',
     }));
     await sh('kubectl', ['apply', '-f', manifestPath], { timeoutMs: T.kubectl });
     await sh('kubectl', ['rollout', 'status', `deployment/${name}`, '-n', ns, '--timeout=120s'], { timeoutMs: T.rollout });
 
     stage(6); // Live
-    dep.url = await resolveUrl(sh, L, name, ns, mode);
+    if (host) {
+      dep.url = `http://${host}`;
+      try { await dns.resolve4(host); } catch (e) {
+        L(`Warning: ${host} does not resolve in DNS yet. Add a wildcard A record (*.${process.env.APP_DOMAIN}) pointing to this server's IP.`);
+      }
+    } else {
+      dep.url = await resolveUrl(sh, L, name, ns, mode);
+    }
 
     dep.stageIndex = store.STAGES.length;
     dep.status = 'live';

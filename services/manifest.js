@@ -4,9 +4,10 @@ function sanitizeName(s) {
   return String(s).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '') || 'app';
 }
 
-function render({ name, namespace, image, port, replicas, mode, repo, commit }) {
+function render({ name, namespace, image, port, replicas, mode, repo, commit, host, ingressClass }) {
   const q = (v) => JSON.stringify(String(v));
-  const svcType = mode === 'local' ? 'NodePort' : 'LoadBalancer';
+  // With a public hostname, traffic arrives through the Ingress, so the Service stays internal.
+  const svcType = host ? 'ClusterIP' : mode === 'local' ? 'NodePort' : 'LoadBalancer';
   return `apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -69,7 +70,29 @@ spec:
   ports:
     - port: 80
       targetPort: ${Number(port)}
-`;
+${host ? `---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ${name}
+  namespace: ${namespace}
+  labels:
+    app: ${name}
+    managed-by: deployhub
+spec:
+  ingressClassName: ${q(ingressClass || 'traefik')}
+  rules:
+    - host: ${q(host)}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ${name}
+                port:
+                  number: 80
+` : ''}`;
 }
 
 module.exports = { sanitizeName, render };

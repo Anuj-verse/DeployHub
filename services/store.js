@@ -87,7 +87,7 @@ function create({ fullName, branch, ownerLogin, trigger = 'manual', port = null,
     requestedPort: port, port, replicas,
     status: 'running',          // running | live | failed
     stage: 'Queued', stageIndex: -1, failedIndex: null, error: null,
-    commit: null, stack: null, image: null, url: null, appName: null, namespace: null,
+    commit: null, stack: null, image: null, url: null, host: null, appName: null, namespace: null,
     logs: [], startedAt: Date.now(), finishedAt: null,
   };
   deployments.set(id, dep);
@@ -119,6 +119,15 @@ function removeApp(login, fullName) {
   }
   scheduleSave();
 }
+// Who currently owns a public hostname (any deployment that reached the Deploy stage with it).
+function hostOwner(host) {
+  const d = [...deployments.values()].find((x) => x.host === host);
+  return d ? d.ownerLogin : null;
+}
+function previousHost(login, fullName, excludeId) {
+  const d = listByOwner(login).find((x) => x.id !== excludeId && x.host && key(x.fullName) === key(fullName));
+  return d ? d.host : null;
+}
 const publicView = ({ logs, ...rest }) => rest; // listings never include the log lines
 
 const setLink = (fullName, v) => { links.set(key(fullName), { ...(links.get(key(fullName)) || {}), fullName, ...v }); scheduleSave(); };
@@ -127,5 +136,5 @@ const deleteLink = (fullName) => { links.delete(key(fullName)); scheduleSave(); 
 
 module.exports = {
   STAGES, create, log, get, listByOwner, latestFor, isRunning, removeApp, publicView,
-  setLink, getLink, deleteLink, touch: scheduleSave, flush,
+  setLink, getLink, deleteLink, hostOwner, previousHost, touch: scheduleSave, flush,
 };
