@@ -1,9 +1,9 @@
-# DeployHub
+# DeploySync
 
-Automated CI/CD platform: sign in with GitHub, pick a repository, and DeployHub clones it, generates a Dockerfile (if needed), builds and pushes the image, and deploys it to a managed Kubernetes cluster. A GitHub webhook redeploys on every push.
+Automated CI/CD platform: sign in with GitHub, pick a repository, and DeploySync clones it, generates a Dockerfile (if needed), builds and pushes the image, and deploys it to a managed Kubernetes cluster. A GitHub webhook redeploys on every push.
 
 ```
-Browser ──> Express (DeployHub)
+Browser ──> Express (DeploySync)
               │  1. GitHub OAuth ───────────────> GitHub (login, repo list, branches)
               │  2. git clone (token in URL, redacted in logs)
               │  3. detect stack -> generate Dockerfile
@@ -33,22 +33,22 @@ Node 20+, `git`, `docker` (running), `kubectl` with a working kubeconfig, a Dock
 1. `npm install`
 2. Create a GitHub OAuth App: Settings > Developer settings > OAuth Apps. Callback URL: `<BASE_URL>/auth/callback` (default `http://localhost:3000/auth/callback`).
 3. `cp .env.example .env` and fill in `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `DOCKER_USER`, `DOCKER_PASS` (or run `docker login` once), `SESSION_SECRET`, `WEBHOOK_SECRET`.
-4. Check the cluster: `kubectl get nodes`. Each GitHub user's apps go into their own namespace (`deployhub-<github-login>`), created automatically.
+4. Check the cluster: `kubectl get nodes`. Each GitHub user's apps go into their own namespace (`deploysync-<github-login>`), created automatically.
 5. `npm start`, then open http://localhost:3000.
 
 ### Cloud cluster (EKS/GKE/AKS)
 Keep `CLUSTER_MODE=cloud`. Services are type `LoadBalancer`; the URL appears once the cloud assigns an address (up to 2 min). Building on Apple Silicon for an x86 cluster: set `DOCKER_PLATFORM=linux/amd64`.
 
 ### Local cluster (no cloud cost)
-Use **minikube** (recommended): `minikube start`, then in `.env` set `CLUSTER_MODE=local` and `LOCAL_HOST=$(minikube ip)`. Services become `NodePort`. Local clusters pull images from Docker Hub, so the push step still needs a valid Docker login. With **kind**, NodePorts are not reachable from the host; use `kubectl port-forward svc/<app> 8080:80 -n deployhub` (the log prints this tip).
+Use **minikube** (recommended): `minikube start`, then in `.env` set `CLUSTER_MODE=local` and `LOCAL_HOST=$(minikube ip)`. Services become `NodePort`. Local clusters pull images from Docker Hub, so the push step still needs a valid Docker login. With **kind**, NodePorts are not reachable from the host; use `kubectl port-forward svc/<app> 8080:80 -n deploysync` (the log prints this tip).
 
 ### Webhook (auto-redeploy)
-GitHub cannot reach localhost. Run `ngrok http 3000`, set `BASE_URL` to the https URL (also update the OAuth App callback URL), restart, and deploy once. DeployHub registers the webhook on the first successful deploy. Pushing to the deployed branch then redeploys (Trigger = `webhook`).
+GitHub cannot reach localhost. Run `ngrok http 3000`, set `BASE_URL` to the https URL (also update the OAuth App callback URL), restart, and deploy once. DeploySync registers the webhook on the first successful deploy. Pushing to the deployed branch then redeploys (Trigger = `webhook`).
 
 ## Run on a VM (no laptop needed at the exam)
 Ubuntu 22.04 VM (EC2 t3.medium, Elastic IP). Security group: 22 (your IP only), 3000, 30000-32767.
 ```
-git clone <your-repo-url> deployhub && cd deployhub
+git clone <your-repo-url> deploysync && cd deploysync
 bash scripts/setup-ec2.sh     # Docker, Node 20, k3s, pm2, deps, .env with generated secrets + detected public IP
 nano .env                     # fill GITHUB_CLIENT_ID/SECRET, DOCKER_USER, DOCKER_PASS
 # set the GitHub OAuth App callback to http://<public-ip>:3000/auth/callback, log out/in once, then:
@@ -60,7 +60,7 @@ bash scripts/start.sh         # runs `npm run preflight`, starts under pm2, enab
 Set `APP_DOMAIN=yourdomain.in`. Every deployed repo is served at `http://<repo>.yourdomain.in` through the Ingress (k3s ships Traefik on ports 80/443); the Service stays internal.
 1. In your DNS provider add two **A records** pointing to the server's Elastic IP: `deploy` and `*` (wildcard), TTL 300.
 2. Security group: allow inbound **80** (and 443 if you add TLS later).
-3. `.env`: `APP_DOMAIN=yourdomain.in`, `BASE_URL=http://deploy.yourdomain.in:3000`, then `pm2 restart deployhub --update-env`. Update the GitHub OAuth App callback to `http://deploy.yourdomain.in:3000/auth/callback`.
+3. `.env`: `APP_DOMAIN=yourdomain.in`, `BASE_URL=http://deploy.yourdomain.in:3000`, then `pm2 restart deploysync --update-env`. Update the GitHub OAuth App callback to `http://deploy.yourdomain.in:3000/auth/callback`.
 4. `npm run preflight` verifies Traefik and the wildcard DNS.
 Naming: `<repo>.domain`; if another user already owns that name it becomes `<repo>-<user>.domain`; reserved names (`www`, `deploy`, `mail`, ...) get `-app`. A user's app keeps its hostname across redeploys. Without `APP_DOMAIN` the old IP:port URLs are used.
 
@@ -69,7 +69,7 @@ Naming: `<repo>.domain`; if another user already owns that name it becomes `<rep
 2. Deploy `sample-repos/node-sample` (push it to your GitHub first). Watch the stepper and logs, then open the live URL.
 3. Show the generated Dockerfile in the Generating step logs.
 4. Deploy `sample-repos/python-sample` the same way (Flask on 8000).
-5. Edit the Node app, `git push`, and show the automatic webhook redeploy and rolling update (`kubectl get pods -A -l managed-by=deployhub -w`).
+5. Edit the Node app, `git push`, and show the automatic webhook redeploy and rolling update (`kubectl get pods -A -l managed-by=deploysync -w`).
 
 ## Pipeline stages
 Clone > Detect > Generate > Build > Push > Deploy > Live. Per-stage timeouts: clone 60s, build 600s, push 300s, rollout 150s, load balancer 120s. One running deployment per repo (409 otherwise). Failures stop the run, mark the failing step, and show the error banner.
